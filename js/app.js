@@ -1,4 +1,4 @@
-import { PRODUCTOS, CATEGORIAS, ENVIO_GRATIS, COSTE_ENVIO, CONFIG, CONFIG_INICIAL, precioConfig, textoConfig, buscar, euros } from './datos.js';
+import { PRODUCTOS, CATEGORIAS, ENVIO_GRATIS, COSTE_ENVIO, CUPONES, CONFIG, CONFIG_INICIAL, precioConfig, textoConfig, buscar, euros } from './datos.js';
 import { relojFrente, relojDorso, animarRelojes } from './reloj.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -13,10 +13,15 @@ const guardar = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } 
 let carrito = leer('12h-carrito', []);
 let favoritos = leer('12h-favoritos', []);
 let disenio = { ...CONFIG_INICIAL, ...leer('12h-disenio', {}) };
+let cupon = leer('12h-cupon', null);
+if (!CUPONES[cupon]) cupon = null;
 
 const categoria = (id) => CATEGORIAS.find((c) => c.id === id)?.nombre || '';
 const subtotal = () => carrito.reduce((n, l) => n + l.precio * l.cantidad, 0);
 const unidades = () => carrito.reduce((n, l) => n + l.cantidad, 0);
+const descuento = () => (cupon ? Math.round(subtotal() * CUPONES[cupon] * 100) / 100 : 0);
+// Importe que cuenta para el envío gratis: lo que se paga por los productos.
+const base = () => subtotal() - descuento();
 
 function tostada(texto) {
   const t = $('#tostada');
@@ -42,7 +47,7 @@ function actualizarContadores() {
 }
 
 /* ---------- Carrito ---------- */
-function añadir(id, { opcion = null, config = null } = {}) {
+function añadir(id, { opcion = null, config = null, abrir = true } = {}) {
   const p = buscar(id);
   const precio = config ? precioConfig(config) : p.precio;
   const clave = `${id}|${opcion || ''}|${config ? JSON.stringify(config) : ''}`;
@@ -52,7 +57,7 @@ function añadir(id, { opcion = null, config = null } = {}) {
   guardar('12h-carrito', carrito);
   actualizarContadores();
   pintarCajon();
-  abrirCajon();
+  if (abrir) abrirCajon();
 }
 
 function cambiar(i, delta) {
@@ -64,8 +69,8 @@ function cambiar(i, delta) {
 }
 
 function barraEnvio() {
-  const falta = ENVIO_GRATIS - subtotal();
-  const pct = Math.min(subtotal() / ENVIO_GRATIS, 1) * 100;
+  const falta = ENVIO_GRATIS - base();
+  const pct = Math.min(base() / ENVIO_GRATIS, 1) * 100;
   const texto = carrito.length === 0
     ? `Envío gratis a partir de ${euros(ENVIO_GRATIS)}`
     : falta > 0 ? `Te faltan <b>${euros(falta)}</b> para el envío gratis` : '<b>Tienes el envío gratis</b>';
@@ -98,9 +103,34 @@ function pintarCajon() {
     $('#cajon-pie').innerHTML = '<a class="btn btn--ancho" href="#/disena" data-cerrar>Diseñar mi reloj</a>';
     return;
   }
-  $('#lineas').innerHTML = carrito.map((l, i) => lineaHTML(l, i)).join('');
-  $('#cajon-pie').innerHTML = `<div class="total"><span>Subtotal</span><span>${euros(subtotal())}</span></div>
+  $('#lineas').innerHTML = carrito.map((l, i) => lineaHTML(l, i)).join('') + sugerenciaHTML();
+  $('#cajon-pie').innerHTML = `${cuponHTML()}
+    <dl class="cuentas"><dt>Subtotal</dt><dd>${euros(subtotal())}</dd>${descuento() ? `<dt>Descuento</dt><dd>−${euros(descuento())}</dd>` : ''}</dl>
+    <div class="total"><span>Total sin envío</span><span>${euros(base())}</span></div>
     <a class="btn btn--ancho" href="#/pago" data-cerrar>Finalizar compra</a>`;
+}
+
+/* Con un reloj en el carrito y sin estuche de viaje, se propone el estuche. */
+function sugerenciaHTML() {
+  const estuche = buscar('estuche');
+  const hayReloj = carrito.some((l) => buscar(l.id).categoria === 'relojes');
+  if (!estuche || !hayReloj || carrito.some((l) => l.id === 'estuche')) return '';
+  return `<div class="sugerencia">
+    <img src="${estuche.imagen}" alt="">
+    <div><small>Para llevarlo de viaje</small><b>${esc(estuche.nombre)}</b><span>${euros(estuche.precio)}</span></div>
+    <button class="btn btn--hueco" type="button" data-sugerir="estuche">Añadir</button>
+  </div>`;
+}
+
+function cuponHTML() {
+  if (cupon) {
+    return `<div class="cupon cupon--puesto"><span>Código <b>${esc(cupon)}</b>: −${Math.round(CUPONES[cupon] * 100)} %</span><button class="quitar" type="button" data-quitar-cupon>Quitar</button></div>`;
+  }
+  return `<form class="cupon" data-cupon novalidate>
+    <label class="visual-oculto" for="campo-cupon">Código de descuento</label>
+    <input id="campo-cupon" name="cupon" type="text" placeholder="Código de descuento" autocomplete="off" autocapitalize="characters">
+    <button class="btn btn--hueco" type="submit">Aplicar</button>
+  </form><p class="cupon__error" id="cupon-error" role="alert"></p>`;
 }
 
 let focoPrevio = null;
@@ -122,7 +152,25 @@ $('#cajon').addEventListener('click', (e) => {
   if (c) return cambiar(+c.dataset.cant, +c.dataset.delta);
   const q = e.target.closest('[data-quitar]');
   if (q) return cambiar(+q.dataset.quitar, -999);
+  const sug = e.target.closest('[data-sugerir]');
+  if (sug) { const p = buscar(sug.dataset.sugerir); añadir(p.id, { abrir: false }); tostada(`${p.nombre} añadido al carrito`); return; }
+  if (e.target.closest('[data-quitar-cupon]')) { cupon = null; guardar('12h-cupon', cupon); pintarCajon(); return; }
   if (e.target.closest('[data-cerrar]')) cerrarCajon();
+});
+$('#cajon').addEventListener('submit', (e) => {
+  const f = e.target.closest('[data-cupon]');
+  if (!f) return;
+  e.preventDefault();
+  const codigo = f.cupon.value.trim().toUpperCase();
+  if (CUPONES[codigo]) {
+    cupon = codigo;
+    guardar('12h-cupon', cupon);
+    pintarCajon();
+    tostada(`Código aplicado: ${Math.round(CUPONES[codigo] * 100)} % de descuento`);
+  } else {
+    $('#cupon-error').textContent = codigo ? 'Ese código no existe. Prueba con BIENVENIDA10.' : 'Escribe un código.';
+    f.cupon.focus();
+  }
 });
 $('#btn-carrito').addEventListener('click', () => { pintarCajon(); abrirCajon(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#cajon').classList.contains('abierto')) cerrarCajon(); });
@@ -413,7 +461,7 @@ function vistaInicio() {
       <div class="portada__reloj" aria-hidden="true">${relojFrente(disenio)}</div>
     </div>
   </section>
-  <div class="cinta" aria-hidden="true"><div class="cinta__pista">${Array(2).fill('<span>Diseña tu reloj en directo</span><span>Grabado a mano</span><span>Envío gratis desde 100 €</span><span>Cristal de zafiro</span><span>Joyas de plata de ley</span>').join('')}</div></div>
+  <div class="cinta" aria-hidden="true"><div class="cinta__pista">${Array(2).fill('<span>Diseña tu reloj en directo</span><span>Grabado a mano</span><span>Envío gratis desde 100 €</span><span>Cristal de zafiro</span><span>10 % con el código BIENVENIDA10</span><span>Joyas de plata de ley</span>').join('')}</div></div>
   ${htmlConfigurador()}
   <section class="bloque envoltura">
     <div class="bloque__cab"><div><span class="etiqueta">La colección</span><h2 class="bloque__titulo">Relojes para <em>cada día</em></h2></div><a class="btn btn--hueco" href="#/catalogo/relojes">Ver todos</a></div>
@@ -442,6 +490,18 @@ function vistaInicio() {
       <span class="etiqueta">El taller</span>
       <h2 class="bloque__titulo">Cada reloj pasa por <em>unas manos.</em></h2>
       <ol class="pasos-taller"><li><b>Lo montamos</b><span>Ajustamos la caja, la esfera y la correa que elegiste y comprobamos la marcha 24 horas.</span></li><li><b>Lo grabamos</b><span>Tu mensaje, a mano y en cursiva, en la tapa trasera.</span></li><li><b>Te lo enviamos</b><span>En su estuche, en 48 horas, con 2 años de garantía.</span></li></ol>
+    </div>
+  </section>
+  <section class="bloque envoltura" style="padding-top:0">
+    <div class="faq">
+      <div><span class="etiqueta">Antes de pedir</span><h2 class="bloque__titulo">Preguntas <em>frecuentes</em></h2></div>
+      <div>
+        <details class="acordeon" open><summary>¿Cuánto tarda un reloj diseñado por mí?</summary><p>Lo montamos y lo grabamos a mano en 48 horas, y después sale con el envío que elijas: estándar en 48-72 h o exprés en 24 h.</p></details>
+        <details class="acordeon"><summary>¿Puedo devolver un reloj con grabado?</summary><p>Los relojes y las joyas se pueden devolver en 30 días. Las piezas con grabado no, porque están hechas solo para ti; por eso ves el texto escrito en la tapa antes de comprar.</p></details>
+        <details class="acordeon"><summary>¿Cómo sé mi talla de anillo?</summary><p>Con el medidor de esta página: rodea el dedo con un hilo y pon la medida, o calibra la pantalla con una moneda de 1 € y coloca encima un anillo que te quede bien.</p></details>
+        <details class="acordeon"><summary>¿Hay algún descuento?</summary><p>Sí: con el código BIENVENIDA10 tienes un 10 % en tu primer pedido. Se escribe en el carrito.</p></details>
+        <details class="acordeon"><summary>¿Es una tienda de verdad?</summary><p>No. Es una tienda de demostración hecha por Dania360: la marca y los productos son inventados y el pago es de prueba, no se cobra nada.</p></details>
+      </div>
     </div>
   </section>`;
   activarConfigurador();
@@ -545,11 +605,11 @@ function vistaPago() {
   const datos = leer('12h-envio', { nombre: '', email: '', direccion: '', cp: '', ciudad: '', telefono: '' });
   let metodo = 'estandar';
   let regalo = false;
-  const gastos = () => (metodo === 'expres' ? COSTE_ENVIO.expres : subtotal() >= ENVIO_GRATIS ? 0 : COSTE_ENVIO.estandar);
+  const gastos = () => (metodo === 'expres' ? COSTE_ENVIO.expres : base() >= ENVIO_GRATIS ? 0 : COSTE_ENVIO.estandar);
 
   const resumen = () => `<aside class="caja resumen"><h2>Resumen</h2>${carrito.map((l, i) => lineaHTML(l, i, false)).join('')}
-    <dl><dt>Subtotal</dt><dd>${euros(subtotal())}</dd><dt>Envío</dt><dd>${gastos() === 0 ? 'Gratis' : euros(gastos())}</dd>${regalo ? '<dt>Estuche de regalo</dt><dd>Gratis</dd>' : ''}</dl>
-    <div class="total"><span>Total</span><span>${euros(subtotal() + gastos())}</span></div></aside>`;
+    <dl><dt>Subtotal</dt><dd>${euros(subtotal())}</dd>${descuento() ? `<dt>Descuento (${esc(cupon)})</dt><dd>−${euros(descuento())}</dd>` : ''}<dt>Envío</dt><dd>${gastos() === 0 ? 'Gratis' : euros(gastos())}</dd>${regalo ? '<dt>Estuche de regalo</dt><dd>Gratis</dd>' : ''}</dl>
+    <div class="total"><span>Total</span><span>${euros(base() + gastos())}</span></div></aside>`;
   const campo = (id, etiqueta, tipo = 'text', ancho = false, extra = '') => `<label class="campo ${ancho ? 'campo--ancho' : ''}">${etiqueta}<input id="${id}" name="${id}" type="${tipo}" value="${esc(datos[id] || '')}" ${extra} required></label>`;
 
   const pintar = () => {
@@ -562,7 +622,7 @@ function vistaPago() {
         <div class="botones-pago"><a class="btn btn--hueco" href="#/catalogo/todo">Seguir comprando</a><button class="btn" type="submit">Continuar</button></div></form>`;
     } else if (paso === 2) {
       cuerpo = `<form class="caja" id="form-paso"><h2>¿Cómo lo quieres?</h2>
-        <label class="opcion"><input type="radio" name="metodo" value="estandar" ${metodo === 'estandar' ? 'checked' : ''}><span>Estándar<small>Entrega en 48-72 h (los relojes diseñados, en 48 h de taller más el envío)</small></span><b>${subtotal() >= ENVIO_GRATIS ? 'Gratis' : euros(COSTE_ENVIO.estandar)}</b></label>
+        <label class="opcion"><input type="radio" name="metodo" value="estandar" ${metodo === 'estandar' ? 'checked' : ''}><span>Estándar<small>Entrega en 48-72 h (los relojes diseñados, en 48 h de taller más el envío)</small></span><b>${base() >= ENVIO_GRATIS ? 'Gratis' : euros(COSTE_ENVIO.estandar)}</b></label>
         <label class="opcion"><input type="radio" name="metodo" value="expres" ${metodo === 'expres' ? 'checked' : ''}><span>Exprés<small>Entrega en 24 h desde que sale del taller</small></span><b>${euros(COSTE_ENVIO.expres)}</b></label>
         <label class="opcion"><input type="checkbox" name="regalo" ${regalo ? 'checked' : ''}><span>Es para regalar<small>Estuche de regalo con lazo y sin precio en el paquete</small></span><b>Gratis</b></label>
         <div class="botones-pago"><button class="btn btn--hueco" type="button" data-atras>Atrás</button><button class="btn" type="submit">Continuar</button></div></form>`;
@@ -571,7 +631,7 @@ function vistaPago() {
         <div class="nota-prueba">Pago de demostración: no se pide tarjeta y no se cobra nada. Al confirmar verás cómo termina un pedido real.</div>
         <label class="opcion"><input type="radio" name="pago" value="demo" checked><span>Pago de prueba<small>Simula un pago con tarjeta aceptado</small></span></label>
         <p class="pago__envio">Enviamos a <b>${esc(datos.nombre)}</b>, ${esc(datos.direccion)}, ${esc(datos.cp)} ${esc(datos.ciudad)}.</p>
-        <div class="botones-pago"><button class="btn btn--hueco" type="button" data-atras>Atrás</button><button class="btn" type="submit">Pagar ${euros(subtotal() + gastos())}</button></div></form>`;
+        <div class="botones-pago"><button class="btn btn--hueco" type="button" data-atras>Atrás</button><button class="btn" type="submit">Pagar ${euros(base() + gastos())}</button></div></form>`;
     }
     app.innerHTML = `<div class="envoltura"><section class="pago"><div>
       <ol class="pasos">${etapas.map((e, i) => `<li class="${i + 1 === paso ? 'activo' : i + 1 < paso ? 'hecho' : ''}">${i + 1}. ${e}</li>`).join('')}</ol>
@@ -595,7 +655,7 @@ function vistaPago() {
         if (!ok) { tostada('Revisa los campos marcados en rojo'); f.querySelector('[aria-invalid=true]')?.focus(); return; }
         guardar('12h-envio', datos);
       }
-      if (paso === 3) return confirmar(subtotal() + gastos());
+      if (paso === 3) return confirmar(base() + gastos());
       paso += 1;
       pintar();
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -610,6 +670,8 @@ function confirmar(total) {
   const grabados = carrito.filter((l) => l.config?.grabado).map((l) => l.config.grabado);
   carrito = [];
   guardar('12h-carrito', carrito);
+  cupon = null;
+  guardar('12h-cupon', cupon);
   actualizarContadores();
   sessionStorage.setItem('12h-pedido', JSON.stringify({ numero, total, grabados }));
   location.hash = '#/gracias';

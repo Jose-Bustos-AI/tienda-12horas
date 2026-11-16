@@ -13,6 +13,8 @@ Tienda de relojes y joyas programada desde cero. En la portada montas tu propio 
 - Medidor de talla de anillo: con un hilo, o calibrando la pantalla con una moneda de 1 € y midiendo un anillo
 - Tienda de una sola página con rutas `#/`, catálogo, favoritos y buscador
 - Carrito con miniatura del reloj tal y como se diseñó y pago de demostración en tres pasos
+- Código de descuento BIENVENIDA10 en el carrito y sugerencia del estuche de viaje
+- Preguntas frecuentes desplegables en la portada
 - Respeta a quien pide menos animación en su dispositivo
 - Alojada en Vercel
 
