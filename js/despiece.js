@@ -538,9 +538,9 @@ export class Despiece {
       this.renderer.setPixelRatio(Math.max(0.7, this.renderer.getPixelRatio() * 0.82));
       this.ajustar(); this.lento = 0;
     }
-    this.visto += (this.progreso - this.visto) * (this.reducir ? 1 : 1 - Math.exp(-dt * 4.2));
+    this.visto += (this.progreso - this.visto) * (this.reducir ? 1 : 1 - Math.exp(-dt * 7));
     const p = this.visto;
-    const abrir = suave(0.1, 0.5, p) * (1 - suave(0.74, 0.97, p));
+    const abrir = suave(0.03, 0.44, p) * (1 - suave(0.62, 0.93, p));
     const tan = Math.tan((this.camara.fov / 2) * Math.PI / 180);
 
     // Cada pieza sale en su turno
@@ -568,7 +568,7 @@ export class Despiece {
     this.horas.rotation.z = -(hor / 12) * TAU;
 
     // Encuadre: el reloj montado va a un lado y el despiece ocupa toda la pantalla
-    const aUnLado = (1 - suave(0.03, 0.22, p)) + suave(0.82, 0.99, p);
+    const aUnLado = (1 - suave(0.02, 0.2, p)) + suave(0.72, 0.95, p);
     const inclinX = this.reducir ? 0 : this.raton.y * 0.06, inclinY = this.reducir ? 0 : this.raton.x * 0.1;
     const largo = 7.5, centro = -0.25; // el despiece va de z=-4 a z=3,5
     let distMontado, distAbierto;

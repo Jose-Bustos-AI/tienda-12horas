@@ -454,11 +454,11 @@ async function montarDespiece() {
     if (!seccion.isConnected) return;
     despiece = new Despiece(seccion, $('#despiece'), $('#despiece-etiquetas'), {
       alCambiar: (p) => {
-        poner(fases[0], 1 - suave(0.02, 0.11, p));
-        poner(fases[1], suave(0.3, 0.46, p) * (1 - suave(0.68, 0.78, p)));
-        poner(fases[2], suave(0.9, 0.985, p));
+        poner(fases[0], 1 - suave(0.01, 0.09, p));
+        poner(fases[1], suave(0.24, 0.38, p) * (1 - suave(0.58, 0.66, p)));
+        poner(fases[2], suave(0.84, 0.96, p));
         pista.style.opacity = (1 - suave(0, 0.05, p)).toFixed(3);
-        seccion.style.setProperty('--velo', ((1 - suave(0.04, 0.16, p)) + suave(0.86, 0.97, p)).toFixed(3));
+        seccion.style.setProperty('--velo', ((1 - suave(0.03, 0.14, p)) + suave(0.78, 0.94, p)).toFixed(3));
       }
     });
     seccion.classList.add('lista');
@@ -800,7 +800,7 @@ function ruta() {
     default: vistaNoEncontrada();
   }
   revelar();
-  if (partes[0] !== 'pago') window.scrollTo({ top: 0 });
+  if (partes[0] !== 'pago') window.scrollTo({ top: 0, behavior: 'instant' });
   app.focus({ preventScroll: true });
 }
 window.addEventListener('hashchange', ruta);
