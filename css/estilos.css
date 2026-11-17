@@ -113,6 +113,27 @@ em.portada__l { color: var(--oro); animation-delay: .15s; }
 .portada__datos { list-style: none; padding: 0; margin: 46px 0 0; display: flex; gap: 34px; flex-wrap: wrap; font-size: 13px; color: var(--gris-claro); animation: subir 1s .5s both; }
 .portada__datos b { display: block; font-family: var(--serif); font-size: 34px; font-weight: 600; color: var(--marfil); line-height: 1.1; }
 .portada__reloj { justify-self: center; width: min(100%, 380px); filter: drop-shadow(0 50px 50px rgba(0, 0, 0, .55)); animation: flotar 7s ease-in-out infinite, aparecer 1.2s .2s both; }
+/* Hero con despiece 3D ligado al scroll */
+.portada--despiece { overflow: visible; overflow: clip; height: 430vh; }
+.portada--despiece.sin-3d { height: auto; }
+.portada__pegado { position: sticky; top: var(--cab-alto); height: calc(100vh - var(--cab-alto)); height: calc(100svh - var(--cab-alto)); overflow: hidden; }
+.sin-3d .portada__pegado { position: relative; height: auto; }
+.portada--despiece .portada__grid { height: 100%; min-height: 0; padding: 0; z-index: 2; }
+.sin-3d .portada__grid { padding: 50px 0; }
+.despiece__lienzo { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; transition: opacity 1.2s .2s; }
+.lista .despiece__lienzo { opacity: 1; }
+.sin-3d .despiece__lienzo, .sin-3d .despiece__fase, .sin-3d .despiece__pista, .sin-3d .despiece__etiquetas { display: none; }
+.despiece__etiquetas { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.despiece__etiqueta { position: absolute; left: 0; top: 0; opacity: 0; white-space: nowrap; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--marfil-2); padding: 6px 10px; border: 1px solid rgba(201, 164, 92, .45); border-radius: 999px; background: rgba(15, 14, 13, .55); backdrop-filter: blur(6px); will-change: transform, opacity; }
+.despiece__fase { position: absolute; inset: 0; z-index: 2; opacity: 0; visibility: hidden; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; pointer-events: none; }
+.despiece__fase--dentro { justify-content: flex-start; align-items: center; text-align: center; padding-top: clamp(18px, 4.5vh, 48px); }
+.despiece__fase--fin > * { max-width: 520px; }
+.despiece__titulo { font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 4.2vw, 60px); line-height: 1; margin: 8px 0 18px; letter-spacing: -.01em; }
+.despiece__fase--fin .despiece__titulo { font-size: clamp(44px, 6.5vw, 92px); }
+.despiece__titulo em { color: var(--oro); }
+.despiece__pista { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 2; font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--gris-claro); pointer-events: none; white-space: nowrap; }
+.despiece__pista span { display: inline-block; color: var(--oro); animation: bajar 1.6s ease-in-out infinite; }
+@keyframes bajar { 50% { transform: translateY(6px); } }
 @keyframes flotar { 50% { transform: translateY(-14px) rotate(-1.5deg); } }
 @keyframes aparecer { from { opacity: 0; transform: scale(.9); } }
 
@@ -401,6 +422,15 @@ em.portada__l { color: var(--oro); animation-delay: .15s; }
   .cab__movil a { flex: none; text-decoration: none; font-size: 13px; font-weight: 700; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--linea-osc); color: var(--marfil-2); }
   .cab__movil a[aria-current] { background: var(--oro); border-color: var(--oro); color: var(--negro); }
   .portada__grid { grid-template-columns: 1fr; min-height: 0; padding: 40px 0 56px; gap: 10px; text-align: left; }
+  .portada--despiece .portada__grid { align-items: end; padding: 0 0 64px; }
+  .portada--despiece .portada__datos { display: none; }
+  .portada--despiece .portada__titulo { font-size: clamp(40px, 12vw, 54px); margin-bottom: 12px; }
+  .portada--despiece .portada__texto { font-size: 15px; margin-bottom: 18px; }
+  .despiece__fase--fin { justify-content: flex-end; padding-bottom: 64px; }
+  .portada__pegado::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 58%; background: linear-gradient(to bottom, transparent, rgba(15, 14, 13, .92) 45%, var(--negro)); pointer-events: none; z-index: 1; opacity: var(--velo, 1); }
+  .despiece__fase--dentro { padding-top: 10px; }
+  .despiece__fase--dentro .despiece__titulo { font-size: 24px; margin: 4px 0 0; }
+  .despiece__etiqueta { font-size: 9px; padding: 4px 8px; letter-spacing: .08em; }
   .portada__reloj { order: -1; width: min(62vw, 270px); }
   .portada__fondo span { transform: none; font-size: 120vw; }
   .disena__in, .taller, .producto, .pago { grid-template-columns: 1fr; }

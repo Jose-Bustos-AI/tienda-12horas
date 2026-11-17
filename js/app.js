@@ -441,13 +441,44 @@ function activarMedidor() {
 }
 
 /* ---------- Vistas ---------- */
+let despiece = null;
+async function montarDespiece() {
+  const seccion = $('#portada');
+  if (!seccion) return;
+  const fases = [$('#fase-0'), $('#fase-1'), $('#fase-2')], pista = $('#despiece-pista');
+  const suave = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const poner = (el, v) => { el.style.opacity = v.toFixed(3); el.style.pointerEvents = v > 0.6 ? '' : 'none'; el.style.visibility = v < 0.01 ? 'hidden' : 'visible'; };
+  try {
+    const { Despiece } = await import('./despiece.js');
+    if (!seccion.isConnected) return;
+    despiece = new Despiece(seccion, $('#despiece'), $('#despiece-etiquetas'), {
+      alCambiar: (p) => {
+        poner(fases[0], 1 - suave(0.02, 0.11, p));
+        poner(fases[1], suave(0.3, 0.46, p) * (1 - suave(0.68, 0.78, p)));
+        poner(fases[2], suave(0.9, 0.985, p));
+        pista.style.opacity = (1 - suave(0, 0.05, p)).toFixed(3);
+        seccion.style.setProperty('--velo', ((1 - suave(0.04, 0.16, p)) + suave(0.86, 0.97, p)).toFixed(3));
+      }
+    });
+    seccion.classList.add('lista');
+  } catch (err) {
+    console.warn('No se pudo cargar el reloj en 3D', err);
+    seccion.classList.add('sin-3d');
+    $('#reloj-respaldo').hidden = false;
+  }
+}
+
 function vistaInicio() {
+  if (despiece) { despiece.destruir(); despiece = null; }
   const relojes = PRODUCTOS.filter((p) => p.categoria === 'relojes' && !p.configurable);
   const joyas = PRODUCTOS.filter((p) => p.categoria === 'joyas').slice(0, 4);
   app.innerHTML = `
-  <section class="portada">
+  <section class="portada portada--despiece" id="portada">
+   <div class="portada__pegado">
     <div class="portada__fondo" aria-hidden="true"><span>12</span></div>
-    <div class="portada__grid envoltura">
+    <canvas class="despiece__lienzo" id="despiece" aria-hidden="true"></canvas>
+    <div class="despiece__etiquetas" id="despiece-etiquetas" aria-hidden="true"></div>
+    <div class="portada__grid envoltura" id="fase-0">
       <div class="portada__copia">
         <span class="etiqueta">Relojes y joyas · Taller en Murcia</span>
         <h1 class="portada__titulo"><span class="portada__l">El tiempo,</span> <em class="portada__l">a tu manera.</em></h1>
@@ -458,8 +489,20 @@ function vistaInicio() {
         </div>
         <ul class="portada__datos"><li><b>120</b> combinaciones posibles</li><li><b>48 h</b> montado a mano</li><li><b>2 años</b> de garantía</li></ul>
       </div>
-      <div class="portada__reloj" aria-hidden="true">${relojFrente(disenio)}</div>
+      <div class="portada__reloj" id="reloj-respaldo" aria-hidden="true" hidden>${relojFrente(disenio)}</div>
     </div>
+    <div class="despiece__fase despiece__fase--dentro envoltura" id="fase-1" aria-hidden="true">
+      <span class="etiqueta">Por dentro</span>
+      <h2 class="despiece__titulo">Más de cien piezas, <em>un solo latido.</em></h2>
+    </div>
+    <div class="despiece__fase despiece__fase--fin envoltura" id="fase-2">
+      <span class="etiqueta">Montado a mano en 48 h</span>
+      <h2 class="despiece__titulo">Y vuelven a ser <em>uno.</em></h2>
+      <p class="portada__texto">Cada reloj se monta, se ajusta y se comprueba durante 24 horas en nuestro taller antes de salir hacia tu muñeca.</p>
+      <div class="portada__acciones"><a class="btn" href="#disena" data-ir="disena">Diseñar mi reloj</a></div>
+    </div>
+    <div class="despiece__pista" id="despiece-pista" aria-hidden="true">Desliza para desmontarlo <span>↓</span></div>
+   </div>
   </section>
   <div class="cinta" aria-hidden="true"><div class="cinta__pista">${Array(2).fill('<span>Diseña tu reloj en directo</span><span>Grabado a mano</span><span>Envío gratis desde 100 €</span><span>Cristal de zafiro</span><span>10 % con el código BIENVENIDA10</span><span>Joyas de plata de ley</span>').join('')}</div></div>
   ${htmlConfigurador()}
@@ -506,6 +549,7 @@ function vistaInicio() {
   </section>`;
   activarConfigurador();
   activarMedidor();
+  montarDespiece();
 }
 
 function vistaDisena() {
@@ -740,6 +784,7 @@ function ruta() {
   if (/^#[a-z-]+$/.test(location.hash) && document.getElementById(location.hash.slice(1))) return; // ancla dentro de la página
   const partes = location.hash.replace(/^#\/?/, '').split('/');
   $('#buscador').hidden = true;
+  if (despiece) { despiece.destruir(); despiece = null; }
   if ($('#cajon').classList.contains('abierto')) cerrarCajon();
   $$('.cab__nav a, .cab__movil a').forEach((a) => (a.getAttribute('href') === location.hash ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
   switch (partes[0]) {
