@@ -446,6 +446,7 @@ async function montarDespiece() {
   const seccion = $('#portada');
   if (!seccion) return;
   const fases = [$('#fase-0'), $('#fase-1'), $('#fase-2')], pista = $('#despiece-pista');
+  seccion.style.setProperty('--cab-real', `${$('#cab').offsetHeight}px`);
   const suave = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
   const poner = (el, v) => { el.style.opacity = v.toFixed(3); el.style.pointerEvents = v > 0.6 ? '' : 'none'; el.style.visibility = v < 0.01 ? 'hidden' : 'visible'; };
   try {

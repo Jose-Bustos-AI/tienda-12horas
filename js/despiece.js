@@ -2,6 +2,7 @@
 // Al hacer scroll se desmonta en capas (cristal, bisel, agujas, esfera, calibre, rotor, tapa) y se vuelve a montar.
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const TAU = Math.PI * 2;
 const sujetar = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
@@ -131,7 +132,7 @@ function texturaPerlado() {
 
 /* ---------- Geometrías ---------- */
 function extruir(forma, fondo, bisel = 0.006, uvRadio = 1) {
-  const g = new THREE.ExtrudeGeometry(forma, { depth: fondo, bevelEnabled: bisel > 0, bevelThickness: bisel, bevelSize: bisel, bevelSegments: 2, curveSegments: 48 });
+  const g = new THREE.ExtrudeGeometry(forma, { depth: fondo, bevelEnabled: bisel > 0, bevelThickness: bisel, bevelSize: bisel, bevelSegments: 1, curveSegments: 28 });
   g.translate(0, 0, -fondo / 2);
   // las tapas llevan la textura vista desde arriba: uv = posición
   const uv = g.attributes.uv, pos = g.attributes.position;
@@ -175,6 +176,30 @@ function rectRedondo(w, h, r) {
   return f;
 }
 
+// Funde en una sola malla las piezas de un grupo que comparten material: muchas menos llamadas de dibujo.
+function fundir(grupo) {
+  grupo.updateMatrixWorld(true);
+  const inversa = grupo.matrixWorld.clone().invert();
+  const porMaterial = new Map();
+  const quitar = [];
+  grupo.traverse((o) => {
+    if (!o.isMesh || Array.isArray(o.material)) return;
+    let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    for (const nombre of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(nombre)) g.deleteAttribute(nombre);
+    g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inversa, o.matrixWorld));
+    if (!porMaterial.has(o.material)) porMaterial.set(o.material, []);
+    porMaterial.get(o.material).push(g);
+    quitar.push(o);
+  });
+  for (const o of quitar) { o.geometry.dispose(); o.parent.remove(o); }
+  for (const [material, lista] of porMaterial) {
+    const unida = mergeGeometries(lista, false);
+    lista.forEach((g) => g.dispose());
+    grupo.add(new THREE.Mesh(unida, material));
+  }
+  return grupo;
+}
+
 /* ---------- El reloj ---------- */
 export class Despiece {
   constructor(seccion, lienzoEl, etiquetasEl, { alCambiar } = {}) {
@@ -183,7 +208,7 @@ export class Despiece {
     this.alCambiar = alCambiar;
     this.reducir = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.renderer = new THREE.WebGLRenderer({ canvas: lienzoEl, antialias: true, alpha: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.1;
@@ -310,6 +335,7 @@ export class Despiece {
       grupo.rotation.z = a - Math.PI / 2;
       esfera.add(grupo);
     }
+    fundir(esfera);
     this.pieza('esfera', esfera, 0.095, [0, 0, 1.2], 0.2, 'Esfera con índices aplicados');
 
     /* Disco de fecha */
@@ -338,27 +364,44 @@ export class Despiece {
     caja.add(this.corona);
     this.pieza('caja', caja, 0, [0, 0, 0], 1, 'Caja de acero 316L');
 
-    /* Brazalete de tres eslabones, en dos mitades */
-    this.matBrazalete = this.material(0xb9bdc3, 0.36, 1, { transparent: true });
-    this.matBrazaleteCentro = this.material(0xd3d6da, 0.16, 1, { transparent: true });
+    /* Brazalete tipo Oyster: eslabones abombados, trabados como ladrillos, que se estrechan y caen hacia la muñeca */
+    this.matBrazalete = this.material(0xc3c7cc, 0.34, 1, { transparent: true, envMapIntensity: 1.25 });
+    this.matBrazaleteCentro = this.material(0xd6d9dd, 0.24, 1, { transparent: true, envMapIntensity: 1.5 });
+    const eslabon = (ancho, largo, alto, mat) => {
+      // perfil lateral en forma de píldora, extruido a lo ancho del brazalete
+      const g = new THREE.ExtrudeGeometry(rectRedondo(largo, alto, alto * 0.49), { depth: ancho - 0.03, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.012, bevelSegments: 2, curveSegments: 6 });
+      g.translate(0, 0, -(ancho - 0.03) / 2);
+      g.rotateY(Math.PI / 2); g.rotateX(Math.PI / 2);
+      return new THREE.Mesh(g, mat);
+    };
+    const paso = 0.236, filas = 11;
     for (const sy of [-1, 1]) {
       const mitad = new THREE.Group();
-      for (let i = 0; i < 8; i++) {
-        const fila = new THREE.Group();
-        const centro = new THREE.Mesh(extruir(rectRedondo(0.52, 0.24, 0.05), 0.11, 0.018), this.matBrazaleteCentro);
-        fila.add(centro);
-        for (const sx of [-1, 1]) {
-          const lado = new THREE.Mesh(extruir(rectRedondo(0.3, 0.24, 0.05), 0.11, 0.018), this.matBrazalete);
-          lado.position.set(sx * 0.425, sy * 0.125, 0); fila.add(lado);
+      let y = 1.0, z = -0.07;
+      for (let n = 0; n <= filas * 2; n++) {
+        const s = n * paso / 2;
+        const caida = 0.08 + s * 0.26; // ángulo con el que cae hacia la muñeca
+        const ancho = mezcla(1.07, 0.84, sujetar(s / (filas * paso)));
+        const nodo = new THREE.Group();
+        if (n === 0) { // eslabón final, macizo, que encaja entre las asas
+          nodo.add(eslabon(ancho, 0.3, 0.125, this.matBrazalete));
+        } else if (n % 2 === 0) {
+          nodo.add(eslabon(ancho * 0.4, 0.25, 0.115, this.matBrazaleteCentro));
+        } else {
+          for (const sx of [-1, 1]) {
+            const l = eslabon(ancho * 0.29, 0.25, 0.115, this.matBrazalete);
+            l.position.x = sx * ancho * 0.355; nodo.add(l);
+          }
         }
-        const curva = i * 0.085;
-        fila.position.set(0, sy * (1.2 + i * 0.25 - i * i * 0.004), -0.1 - i * i * 0.018);
-        fila.rotation.x = sy * curva;
-        fila.scale.x = 1 - i * 0.012;
-        mitad.add(fila);
+        nodo.position.set(0, sy * y, z);
+        nodo.rotation.x = sy * caida;
+        mitad.add(nodo);
+        y += Math.cos(caida) * paso / 2; z -= Math.sin(caida) * paso / 2;
       }
-      this.pieza(sy > 0 ? 'brazalete-a' : 'brazalete-b', mitad, 0, [0, sy * 2.6, -0.6], 0, sy > 0 ? null : null);
+      fundir(mitad);
+      this.pieza(sy > 0 ? 'brazalete-a' : 'brazalete-b', mitad, 0, [0, sy * 2.6, -0.6], 0, null);
     }
+    this.brazaletes = this.piezas.filter((x) => x.nombre.startsWith('brazalete'));
 
     /* Platina con perlado */
     const perlado = texturaPerlado(); perlado.wrapS = perlado.wrapT = THREE.RepeatWrapping; perlado.repeat.set(3, 3);
@@ -400,6 +443,7 @@ export class Despiece {
     const puntos = [];
     for (let i = 0; i <= 260; i++) { const a = (i / 260) * TAU * 6; const rr = 0.02 + (i / 260) * 0.13; puntos.push(new THREE.Vector3(Math.cos(a) * rr, Math.sin(a) * rr, 0.022)); }
     this.volante.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(puntos), 300, 0.0035, 5), azul));
+    fundir(this.volante);
     organo.add(this.volante);
     organo.position.set(-0.26, -0.36, 0);
     this.pieza('volante', organo, -0.06, [0, 0, -1.95], 0.14, 'Volante y espiral');
@@ -428,6 +472,7 @@ export class Despiece {
       g.position.set(x, y, -0.028); g.rotation.z = Math.random() * 3; return g;
     };
     [[0.62, 0.3], [-0.05, 0.68], [-0.66, 0.22], [0.62, -0.12], [-0.6, -0.38], [0.18, 0.5]].forEach(([x, y]) => puentes.add(tornillo(x, y)));
+    fundir(puentes);
     this.pieza('puentes', puentes, -0.1, [0, 0, -2.5], 0.08, 'Puentes y rubíes');
 
     /* Masa oscilante */
@@ -443,6 +488,7 @@ export class Despiece {
     this.rotor.add(new THREE.Mesh(extruir(fMasa, 0.06, 0.01), oro));
     const buje = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.04, 24), acero); buje.rotation.x = Math.PI / 2; this.rotor.add(buje);
     const tBuje = tornillo(0, 0); tBuje.position.z = -0.03; this.rotor.add(tBuje);
+    fundir(this.rotor);
     rotor.add(this.rotor);
     this.pieza('rotor', rotor, -0.16, [0, 0, -3.1], 0.04, 'Masa oscilante');
 
@@ -471,22 +517,28 @@ export class Despiece {
     this.camara.aspect = w / h;
     this.camara.updateProjectionMatrix();
     this.ancho = w; this.alto = h;
+    this.arriba = parseFloat(getComputedStyle(caja).top) || 0;
     this.vertical = w / h < 0.95;
     this.estrecho = w < 900;
   }
 
   medir() {
     const r = this.seccion.getBoundingClientRect();
-    const pegado = this.renderer.domElement.parentElement;
-    const arriba = parseFloat(getComputedStyle(pegado).top) || 0;
-    const recorrido = r.height - pegado.clientHeight;
-    this.progreso = recorrido > 0 ? sujetar((arriba - r.top) / recorrido) : 0;
+    const recorrido = r.height - this.alto;
+    this.progreso = recorrido > 0 ? sujetar((this.arriba - r.top) / recorrido) : 0;
   }
 
   bucle(t) {
     this.frame = requestAnimationFrame(this.bucle);
     if (!this.visible) return;
-    this.visto += (this.progreso - this.visto) * (this.reducir ? 1 : 0.09);
+    const dt = Math.min(0.1, (t - (this.antes || t)) / 1000); this.antes = t;
+    // Si el equipo no llega a 45 fotogramas por segundo, se baja la resolución del lienzo poco a poco
+    this.lento = dt > 0.024 ? (this.lento || 0) + 1 : Math.max(0, (this.lento || 0) - 2);
+    if (this.lento > 45 && this.renderer.getPixelRatio() > 0.7) {
+      this.renderer.setPixelRatio(Math.max(0.7, this.renderer.getPixelRatio() * 0.82));
+      this.ajustar(); this.lento = 0;
+    }
+    this.visto += (this.progreso - this.visto) * (this.reducir ? 1 : 1 - Math.exp(-dt * 4.2));
     const p = this.visto;
     const abrir = suave(0.1, 0.5, p) * (1 - suave(0.74, 0.97, p));
     const tan = Math.tan((this.camara.fov / 2) * Math.PI / 180);
@@ -500,7 +552,7 @@ export class Despiece {
     this.corona.position.x = 1.12 + abrir * 0.55;
     this.matBrazalete.opacity = this.matBrazaleteCentro.opacity = 1 - suave(0.15, 0.7, abrir);
     const brazaleteVisible = this.matBrazalete.opacity > 0.02;
-    this.piezas.filter((x) => x.nombre.startsWith('brazalete')).forEach((x) => { x.objeto.visible = brazaleteVisible; });
+    for (const x of this.brazaletes) x.objeto.visible = brazaleteVisible;
 
     // Mecanismo siempre en marcha
     const s = t / 1000;
