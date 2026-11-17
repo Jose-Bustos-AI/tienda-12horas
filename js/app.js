@@ -228,6 +228,7 @@ function htmlConfigurador(enFicha = false) {
     <div class="disena__in envoltura">
       <div class="disena__escena" id="escena">
         <div class="disena__halo" aria-hidden="true"></div>
+        <canvas class="reloj-lienzo" id="reloj-lienzo" role="img" aria-label="Tu reloj 12horas Uno en 3D. Arrástralo para girarlo."></canvas>
         <div class="reloj3d" id="reloj3d">
           <div class="cara cara--frente" id="cara-frente">${relojFrente(disenio)}</div>
           <div class="cara cara--dorso" id="cara-dorso">${relojDorso(disenio)}</div>
@@ -260,15 +261,30 @@ function htmlConfigurador(enFicha = false) {
   </section>`;
 }
 
+let reloj3d = null;
 function activarConfigurador() {
   const raiz = $('#disena');
   if (!raiz) return;
   const r3d = $('#reloj3d');
   let cara = 'frente';
   let precioMostrado = precioConfig(disenio);
+  let montado = '';
+  const firma = () => [disenio.caja, disenio.esfera, disenio.correa, disenio.tamano].join('|');
+
+  // Reloj en 3D real; si el dispositivo no puede, se queda el reloj dibujado
+  if (reloj3d) { reloj3d.destruir(); reloj3d = null; }
+  import('./reloj3d.js').then(({ Reloj3D }) => {
+    const lienzo = $('#reloj-lienzo', raiz);
+    if (!lienzo || !lienzo.isConnected) return;
+    reloj3d = new Reloj3D(lienzo);
+    reloj3d.configurar(disenio); montado = firma();
+    reloj3d.verCara(cara);
+    $('#escena').classList.add('con-3d');
+  }).catch((err) => console.warn('No se pudo cargar el reloj en 3D', err));
 
   const verCara = (c) => {
     cara = c;
+    if (reloj3d) reloj3d.verCara(c);
     r3d.classList.toggle('girado', c === 'dorso');
     $$('[data-cara]', raiz).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cara === c)));
   };
@@ -289,6 +305,9 @@ function activarConfigurador() {
   const repintar = () => {
     $('#cara-frente').innerHTML = relojFrente(disenio);
     $('#cara-dorso').innerHTML = relojDorso(disenio);
+    if (reloj3d) {
+      if (montado !== firma()) { reloj3d.configurar(disenio); montado = firma(); } else reloj3d.grabar(disenio.grabado);
+    }
     ['caja', 'esfera', 'correa', 'tamano'].forEach((g) => {
       const x = CONFIG[g].find((o) => o.id === disenio[g]);
       const b = $(`[data-nombre="${g}"]`, raiz);

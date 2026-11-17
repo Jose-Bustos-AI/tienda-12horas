@@ -151,6 +151,10 @@ em.portada__l { color: var(--oro); animation-delay: .15s; }
 .disena__halo { position: absolute; top: 4%; left: 50%; width: 82%; aspect-ratio: 1; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(circle, rgba(201, 164, 92, .28), transparent 65%); filter: blur(10px); pointer-events: none; }
 .reloj3d { position: relative; width: min(100%, 360px); aspect-ratio: 300 / 460; transform-style: preserve-3d; transform: rotateX(var(--rx)) rotateY(var(--ry)); transition: transform .9s cubic-bezier(.2, .8, .2, 1); }
 .reloj3d.girado { transform: rotateX(var(--rx)) rotateY(calc(var(--ry) + 180deg)); }
+.reloj-lienzo { display: none; width: min(100%, 420px); aspect-ratio: 300 / 430; cursor: grab; touch-action: pan-y; filter: drop-shadow(0 40px 40px rgba(0, 0, 0, .55)); }
+.reloj-lienzo:active { cursor: grabbing; }
+.con-3d .reloj-lienzo { display: block; }
+.con-3d .reloj3d { display: none; }
 .cara { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; filter: drop-shadow(0 40px 40px rgba(0, 0, 0, .6)); }
 .cara svg { width: 100%; height: 100%; }
 .cara--dorso { transform: rotateY(180deg); }
@@ -438,6 +442,7 @@ em.portada__l { color: var(--oro); animation-delay: .15s; }
   .disena { padding: 64px 0; }
   .disena__escena { position: sticky; top: calc(var(--cab-alto) + 44px); z-index: 2; background: var(--negro); padding-bottom: 10px; }
   .reloj3d { width: min(34vw, 150px); }
+  .reloj-lienzo { width: min(54vw, 230px); filter: none; }
   .disena__escena { gap: 8px; padding-top: 6px; }
   .disena__hora, .disena__halo { display: none; }
   .disena__girar button { padding: 7px 14px; font-size: 13px; }

@@ -10,7 +10,7 @@ const suave = (a, b, v) => { const t = sujetar((v - a) / (b - a)); return t * t 
 const mezcla = (a, b, t) => a + (b - a) * t;
 
 /* ---------- Texturas dibujadas ---------- */
-function lienzo(lado, pintar) {
+export function lienzo(lado, pintar) {
   const c = document.createElement('canvas');
   c.width = c.height = lado;
   const g = c.getContext('2d');
@@ -131,7 +131,7 @@ function texturaPerlado() {
 }
 
 /* ---------- Geometrías ---------- */
-function extruir(forma, fondo, bisel = 0.006, uvRadio = 1) {
+export function extruir(forma, fondo, bisel = 0.006, uvRadio = 1) {
   const g = new THREE.ExtrudeGeometry(forma, { depth: fondo, bevelEnabled: bisel > 0, bevelThickness: bisel, bevelSize: bisel, bevelSegments: 1, curveSegments: 28 });
   g.translate(0, 0, -fondo / 2);
   // las tapas llevan la textura vista desde arriba: uv = posición
@@ -140,12 +140,12 @@ function extruir(forma, fondo, bisel = 0.006, uvRadio = 1) {
   return g;
 }
 const circulo = (r, x = 0, y = 0) => { const p = new THREE.Path(); p.absarc(x, y, r, 0, TAU, true); return p; };
-function disco(r, hueco = 0) {
+export function disco(r, hueco = 0) {
   const f = new THREE.Shape(); f.absarc(0, 0, r, 0, TAU, false);
   if (hueco) f.holes.push(circulo(hueco));
   return f;
 }
-function dentado(rFuera, dientes, alto, hueco = 0, radios = 0) {
+export function dentado(rFuera, dientes, alto, hueco = 0, radios = 0) {
   const f = new THREE.Shape();
   const rRaiz = rFuera - alto;
   for (let i = 0; i < dientes; i++) {
@@ -167,7 +167,7 @@ function dentado(rFuera, dientes, alto, hueco = 0, radios = 0) {
   }
   return f;
 }
-function rectRedondo(w, h, r) {
+export function rectRedondo(w, h, r) {
   const f = new THREE.Shape(), x = -w / 2, y = -h / 2;
   f.moveTo(x + r, y); f.lineTo(x + w - r, y); f.quadraticCurveTo(x + w, y, x + w, y + r);
   f.lineTo(x + w, y + h - r); f.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
@@ -177,7 +177,7 @@ function rectRedondo(w, h, r) {
 }
 
 // Funde en una sola malla las piezas de un grupo que comparten material: muchas menos llamadas de dibujo.
-function fundir(grupo) {
+export function fundir(grupo) {
   grupo.updateMatrixWorld(true);
   const inversa = grupo.matrixWorld.clone().invert();
   const porMaterial = new Map();
